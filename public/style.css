@@ -142,7 +142,7 @@ button:active { transform: scale(0.98); }
   color: var(--text-main);
 }
 
-#message, #transfer-message {
+#message, #transfer-message, #deposit-message {
   margin-top: 15px;
   font-size: 14px;
   text-align: center;

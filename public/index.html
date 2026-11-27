@@ -16,11 +16,11 @@
       <h2>Welcome back</h2>
       <div class="form-group">
         <label>Email</label>
-        <input type="email" id="email" value="test@example.com">
+        <input type="email" id="email" placeholder="Email">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="password" value="password123">
+        <input type="password" id="password" placeholder="Password">
       </div>
       <button onclick="login()">Sign In</button>
       <button class="btn-secondary" onclick="register()">Create Account</button>
@@ -29,7 +29,15 @@
 
     <!-- DASHBOARD SCREEN -->
     <div id="dashboard-section" class="hidden">
-              <div class="card">
+      <div class="card">
+        <div class="balance-display">
+          <div class="balance-label">Available Balance</div>
+          <div class="balance-amount" id="balance">$0.00</div>
+        </div>
+        <button class="btn-secondary" onclick="logout()">Log Out</button>
+      </div>
+
+      <div class="card">
         <h2 style="font-size:18px;">Add Money (Fake)</h2>
         <div class="form-group">
           <label>Amount in Cents (e.g. 5000 = $50.00)</label>
@@ -37,13 +45,6 @@
         </div>
         <button onclick="deposit()">Deposit</button>
         <p id="deposit-message"></p>
-      </div>
-      <div class="card">
-        <div class="balance-display">
-          <div class="balance-label">Available Balance</div>
-          <div class="balance-amount" id="balance">$0.00</div>
-        </div>
-        <button class="btn-secondary" onclick="logout()">Log Out</button>
       </div>
 
       <div class="card">
@@ -71,7 +72,6 @@
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       
-      // Notice we changed this to a relative path so it works on port 3000!
       const res = await fetch(`/api${endpoint}`, {
         method,
         headers,
@@ -128,12 +128,7 @@
       }
     }
 
-    async function transfer() {
-      const toAccountId = parseInt(document.getElementById('toAccountId').value);
-      const amountCents = parseInt(document.getElementById('amount').value);
-      const msg = document.getElementById('transfer-message');
-
-          async function deposit() {
+    async function deposit() {
       const amountCents = parseInt(document.getElementById('depositAmount').value);
       const msg = document.getElementById('deposit-message');
       
@@ -151,6 +146,11 @@
         msg.innerText = data.error;
       }
     }
+
+    async function transfer() {
+      const toAccountId = parseInt(document.getElementById('toAccountId').value);
+      const amountCents = parseInt(document.getElementById('amount').value);
+      const msg = document.getElementById('transfer-message');
       
       if (!toAccountId || !amountCents) {
         msg.style.color = "var(--danger)";
