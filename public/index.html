@@ -29,6 +29,15 @@
 
     <!-- DASHBOARD SCREEN -->
     <div id="dashboard-section" class="hidden">
+              <div class="card">
+        <h2 style="font-size:18px;">Add Money (Fake)</h2>
+        <div class="form-group">
+          <label>Amount in Cents (e.g. 5000 = $50.00)</label>
+          <input type="number" id="depositAmount" placeholder="10000">
+        </div>
+        <button onclick="deposit()">Deposit</button>
+        <p id="deposit-message"></p>
+      </div>
       <div class="card">
         <div class="balance-display">
           <div class="balance-label">Available Balance</div>
@@ -123,6 +132,25 @@
       const toAccountId = parseInt(document.getElementById('toAccountId').value);
       const amountCents = parseInt(document.getElementById('amount').value);
       const msg = document.getElementById('transfer-message');
+
+          async function deposit() {
+      const amountCents = parseInt(document.getElementById('depositAmount').value);
+      const msg = document.getElementById('deposit-message');
+      
+      if (!amountCents) return;
+
+      const data = await apiCall('/deposit', 'POST', { amountCents });
+      
+      if (data.ok) {
+        msg.style.color = "var(--success)";
+        msg.innerText = "Deposit successful!";
+        document.getElementById('depositAmount').value = '';
+        await updateBalance();
+      } else {
+        msg.style.color = "var(--danger)";
+        msg.innerText = data.error;
+      }
+    }
       
       if (!toAccountId || !amountCents) {
         msg.style.color = "var(--danger)";

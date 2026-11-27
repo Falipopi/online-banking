@@ -89,6 +89,17 @@ app.post('/api/transfer', auth, async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+app.post('/api/deposit', auth, async (req, res) => {
+  const { amountCents } = req.body;
+  if (!Number.isInteger(amountCents) || amountCents <= 0)
+    return res.status(400).json({ error: 'Invalid amount' });
 
+  try {
+    await sql`UPDATE accounts SET balance_cents = balance_cents + ${amountCents} WHERE user_id = ${req.user.userId}`;
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 // Vercel requires this export, no app.listen()
 module.exports = app;
