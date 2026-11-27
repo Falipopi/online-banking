@@ -1,28 +1,26 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const db = require('./db');
+const { sql, initDb } = require('./db');
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
 
-const JWT_SECRET = 'dev-secret-change-me';
+// Initialize DB on cold start
+initDb().catch(console.error);
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 // --- AUTH ROUTES ---
-
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password || password.length < 8)
-    return res.status(400).json({ error: 'Invalid input (password must be 8+ chars)' });
+    return res.status(400).json({ error: 'Invalid input' });
 
   const hash = await bcrypt.hash(password, 10);
   try {
-    const info = db.prepare(
-      'INSERT INTO users (email, password_hash) VALUES (?, ?)'
-    ).run(email, hash);
-
-    db.prepare('INSERT INTO accounts (user_id) VALUES (?)').run(info.lastInsertRowid);
+    const userRes = await sql`INSERT INTO users (email, password_hash) VALUES (${email}, ${hash}) RETURNING id`;
+    await sql`INSERT INTO accounts (user_id) VALUES (${userRes.rows[0].id})`;
     res.json({ ok: true });
   } catch {
     res.status(409).json({ error: 'Email already exists' });
@@ -31,7 +29,8 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const userRes = await sql`SELECT * FROM users WHERE email = ${email}`;
+  const user = userRes.rows[0];
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
   const ok = await bcrypt.compare(password, user.password_hash);
@@ -42,7 +41,6 @@ app.post('/api/login', async (req, res) => {
 });
 
 // --- MIDDLEWARE ---
-
 function auth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.replace('Bearer ', '');
@@ -55,42 +53,33 @@ function auth(req, res, next) {
 }
 
 // --- BANKING ROUTES ---
-
-app.get('/api/account', auth, (req, res) => {
-  const acct = db.prepare('SELECT id, balance_cents FROM accounts WHERE user_id = ?')
-    .get(req.user.userId);
-  res.json(acct);
+app.get('/api/account', auth, async (req, res) => {
+  const acctRes = await sql`SELECT id, balance_cents FROM accounts WHERE user_id = ${req.user.userId}`;
+  res.json(acctRes.rows[0]);
 });
 
-const transfer = db.transaction((fromUserId, toAccountId, amount) => {
-  const from = db.prepare('SELECT * FROM accounts WHERE user_id = ?').get(fromUserId);
-  const to = db.prepare('SELECT * FROM accounts WHERE id = ?').get(toAccountId);
-  
-  if (!to) throw new Error('Destination not found');
-  if (from.balance_cents < amount) throw new Error('Insufficient funds');
-
-  db.prepare('UPDATE accounts SET balance_cents = balance_cents - ? WHERE id = ?')
-    .run(amount, from.id);
-  db.prepare('UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?')
-    .run(amount, toAccountId);
-
-  db.prepare('INSERT INTO transactions (account_id, type, amount_cents) VALUES (?,?,?)')
-    .run(from.id, 'transfer_out', amount);
-  db.prepare('INSERT INTO transactions (account_id, type, amount_cents) VALUES (?,?,?)')
-    .run(toAccountId, 'transfer_in', amount);
-});
-
-app.post('/api/transfer', auth, (req, res) => {
+app.post('/api/transfer', auth, async (req, res) => {
   const { toAccountId, amountCents } = req.body;
   if (!Number.isInteger(amountCents) || amountCents <= 0)
     return res.status(400).json({ error: 'Invalid amount' });
 
   try {
-    transfer(req.user.userId, toAccountId, amountCents);
+    const fromRes = await sql`SELECT * FROM accounts WHERE user_id = ${req.user.userId}`;
+    const from = fromRes.rows[0];
+    
+    if (from.balance_cents < amountCents) throw new Error('Insufficient funds');
+
+    await sql`UPDATE accounts SET balance_cents = balance_cents - ${amountCents} WHERE id = ${from.id}`;
+    await sql`UPDATE accounts SET balance_cents = balance_cents + ${amountCents} WHERE id = ${toAccountId}`;
+    
+    await sql`INSERT INTO transactions (account_id, type, amount_cents) VALUES (${from.id}, 'transfer_out', ${amountCents})`;
+    await sql`INSERT INTO transactions (account_id, type, amount_cents) VALUES (${toAccountId}, 'transfer_in', ${amountCents})`;
+
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-app.listen(3000, () => console.log('Bank running on http://localhost:3000'));
+// Vercel requires this export, no app.listen()
+module.exports = app;
