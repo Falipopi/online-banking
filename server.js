@@ -5,6 +5,15 @@ const { sql, initDb } = require('./db');
 
 const app = express();
 app.use(express.json());
+const path = require('path');
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve the frontend
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Initialize DB on cold start
 initDb().catch(console.error);
