@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlastBank</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <div class="brand">BlastBank</div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="auth-section" class="card">
+      <h2>Welcome back</h2>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="email" value="test@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" value="password123">
+      </div>
+      <button onclick="login()">Sign In</button>
+      <button class="btn-secondary" onclick="register()">Create Account</button>
+      <p id="message"></p>
+    </div>
+
+    <!-- DASHBOARD SCREEN -->
+    <div id="dashboard-section" class="hidden">
+      <div class="card">
+        <div class="balance-display">
+          <div class="balance-label">Available Balance</div>
+          <div class="balance-amount" id="balance">$0.00</div>
+        </div>
+        <button class="btn-secondary" onclick="logout()">Log Out</button>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size:18px;">Send Money</h2>
+        <div class="form-group">
+          <label>Destination Account ID</label>
+          <input type="number" id="toAccountId" placeholder="e.g. 1">
+        </div>
+        <div class="form-group">
+          <label>Amount in Cents</label>
+          <input type="number" id="amount" placeholder="e.g. 500 = $5.00">
+        </div>
+        <button onclick="transfer()">Transfer</button>
+        <p id="transfer-message"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('token');
+
+    if (token) showDashboard();
+
+    async function apiCall(endpoint, method, body) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      // Notice we changed this to a relative path so it works on port 3000!
+      const res = await fetch(`/api${endpoint}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      });
+      return res.json();
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('message');
+      
+      const data = await apiCall('/login', 'POST', { email, password });
+      
+      if (data.token) {
+        token = data.token;
+        localStorage.setItem('token', token);
+        showDashboard();
+      } else {
+        msg.style.color = "var(--danger)";
+        msg.innerText = data.error;
+      }
+    }
+
+    async function register() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('message');
+      
+      const data = await apiCall('/register', 'POST', { email, password });
+      
+      if (data.ok) {
+        msg.style.color = "var(--success)";
+        msg.innerText = "Account created! You can log in now.";
+      } else {
+        msg.style.color = "var(--danger)";
+        msg.innerText = data.error;
+      }
+    }
+
+    async function showDashboard() {
+      document.getElementById('auth-section').classList.add('hidden');
+      document.getElementById('dashboard-section').classList.remove('hidden');
+      await updateBalance();
+    }
+
+    async function updateBalance() {
+      const data = await apiCall('/account', 'GET');
+      if (data.balance_cents !== undefined) {
+        document.getElementById('balance').innerText = `$${(data.balance_cents / 100).toFixed(2)}`;
+      } else {
+        logout();
+      }
+    }
+
+    async function transfer() {
+      const toAccountId = parseInt(document.getElementById('toAccountId').value);
+      const amountCents = parseInt(document.getElementById('amount').value);
+      const msg = document.getElementById('transfer-message');
+      
+      if (!toAccountId || !amountCents) {
+        msg.style.color = "var(--danger)";
+        msg.innerText = "Please fill out all fields.";
+        return;
+      }
+
+      const data = await apiCall('/transfer', 'POST', { toAccountId, amountCents });
+      
+      if (data.ok) {
+        msg.style.color = "var(--success)";
+        msg.innerText = "Transfer successful!";
+        document.getElementById('toAccountId').value = '';
+        document.getElementById('amount').value = '';
+        await updateBalance();
+      } else {
+        msg.style.color = "var(--danger)";
+        msg.innerText = data.error;
+      }
+    }
+
+    function logout() {
+      token = null;
+      localStorage.removeItem('token');
+      document.getElementById('auth-section').classList.remove('hidden');
+      document.getElementById('dashboard-section').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
